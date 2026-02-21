@@ -65,6 +65,14 @@
     <div class="stat-label">Failed (24h)</div>
   </div>
   <div class="stat">
+    <div class="stat-value">{{ total_likes_given }}</div>
+    <div class="stat-label">Likes Given</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ likes_given_today }}</div>
+    <div class="stat-label">Likes Today</div>
+  </div>
+  <div class="stat">
     <div class="stat-value">{% if scheduler_status %}<span style="color:var(--green)">ON</span>{% else %}<span style="color:var(--red)">OFF</span>{% endif %}</div>
     <div class="stat-label">Scheduler</div>
   </div>

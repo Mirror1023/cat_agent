@@ -59,6 +59,19 @@ class CommentReply(Base):
     status = Column(String(20), default="sent")
 
 
+class EngagementAction(Base):
+    __tablename__ = "engagement_actions"
+
+    id = Column(Integer, primary_key=True)
+    instagram_media_id = Column(String(100), unique=True, nullable=False)
+    action = Column(String(20), default="like")  # like, skipped
+    hashtag = Column(String(100), nullable=True)
+    score = Column(Float, nullable=True)
+    skip_reason = Column(Text, nullable=True)
+    comment_text = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
@@ -91,6 +104,10 @@ def init_db():
         "agent_persona": Config.AGENT_PERSONA,
         "scheduler_enabled": "false",
         "custom_instructions": "",
+        "enable_engagement": "true",
+        "engagement_hashtags": "cats,catsofinstagram,catlovers,kittens,catlife,meow,kitty,catoftheday",
+        "likes_per_cycle": "5",
+        "vip_accounts": "ghumoose,ffwow,navigator993",
     }
 
     for key, value in defaults.items():

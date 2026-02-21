@@ -9,6 +9,7 @@ from agent.instagram_client import InstagramClient
 from agent.caption_generator import CaptionGenerator
 from agent.image_sourcer import ImageSourcer
 from agent.comment_responder import CommentResponder
+from agent.engagement_agent import EngagementAgent
 from agent.models import Session, Post, log_activity, get_setting, set_setting, utcnow
 from config import Config
 
@@ -20,6 +21,7 @@ class PostScheduler:
         self.captioner = CaptionGenerator()
         self.image_sourcer = ImageSourcer()
         self.comment_responder = CommentResponder()
+        self.engagement_agent = EngagementAgent()
         self._running = False
 
     def start(self):
@@ -29,6 +31,8 @@ class PostScheduler:
         self.scheduler.add_job(self.auto_post, trigger=IntervalTrigger(hours=interval_hours), id="auto_post", name="Auto Post Cat Content", replace_existing=True, max_instances=1)
         if get_setting("enable_comment_replies", "true") == "true":
             self.scheduler.add_job(self.check_comments, trigger=IntervalTrigger(minutes=15), id="check_comments", name="Check & Reply to Comments", replace_existing=True, max_instances=1)
+        if get_setting("enable_engagement", "true") == "true":
+            self.scheduler.add_job(self.run_engagement, trigger=IntervalTrigger(minutes=30), id="engagement", name="Like Cat Posts", replace_existing=True, max_instances=1)
         self.scheduler.start()
         self._running = True
         set_setting("scheduler_enabled", "true")
@@ -193,3 +197,10 @@ class PostScheduler:
                 log_activity("comments_processed", f"Replied to {count} comments", level="success")
         except Exception as e:
             log_activity("comment_check_error", str(e), level="error")
+
+    def run_engagement(self):
+        try:
+            result = self.engagement_agent.run_engagement_cycle()
+            log_activity("engagement_run", f"Liked {result['liked']}, commented {result['commented']}, skipped {result['skipped']}", level="info")
+        except Exception as e:
+            log_activity("engagement_run_error", str(e), level="error")

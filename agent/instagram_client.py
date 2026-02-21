@@ -259,6 +259,97 @@ class InstagramClient:
         resp.raise_for_status()
         return resp.json().get("data", [])
 
+    def search_hashtag(self, hashtag: str) -> str:
+        """Look up a hashtag and return its ID."""
+        resp = requests.get(
+            f"{self.base_url}/ig-hashtag-search",
+            params=self._params({"user_id": self.account_id, "q": hashtag.lstrip("#")}),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        return data[0]["id"] if data else None
+
+    def get_hashtag_media(self, hashtag_id: str, limit: int = 20) -> list:
+        """Fetch recent image posts for a hashtag."""
+        resp = requests.get(
+            f"{self.base_url}/{hashtag_id}/recent_media",
+            params=self._params({
+                "user_id": self.account_id,
+                "fields": "id,media_type,media_url,timestamp",
+                "limit": limit,
+            }),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return resp.json().get("data", [])
+
+    def comment_on_media(self, media_id: str, message: str) -> bool:
+        """Post a top-level comment on a media post. Requires instagram_business_manage_comments."""
+        resp = requests.post(
+            f"{self.base_url}/{media_id}/comments",
+            data=self._params({"message": message}),
+            timeout=15,
+        )
+        if not resp.ok:
+            try:
+                ig_error = resp.json().get("error", {})
+                msg = ig_error.get("message") or resp.text
+                code = ig_error.get("code", "")
+                detail = f"Instagram API error ({resp.status_code}): {msg}"
+                if code:
+                    detail += f" [code {code}]"
+            except Exception:
+                detail = f"{resp.status_code} {resp.text}"
+            raise requests.HTTPError(detail, response=resp)
+        log_activity("ig_commented", f"Commented on {media_id}: {message[:60]}", level="info")
+        return True
+
+    def like_media(self, media_id: str) -> bool:
+        """Like a media post. Requires instagram_manage_likes permission."""
+        resp = requests.post(
+            f"{self.base_url}/{media_id}/likes",
+            data=self._params(),
+            timeout=15,
+        )
+        if not resp.ok:
+            try:
+                ig_error = resp.json().get("error", {})
+                msg = ig_error.get("message") or resp.text
+                code = ig_error.get("code", "")
+                detail = f"Instagram API error ({resp.status_code}): {msg}"
+                if code:
+                    detail += f" [code {code}]"
+            except Exception:
+                detail = f"{resp.status_code} {resp.text}"
+            raise requests.HTTPError(detail, response=resp)
+        log_activity("ig_liked", f"Liked media {media_id}", level="info")
+        return True
+
+    def get_user_media_by_username(self, username: str) -> list:
+        """Fetch recent posts from another public business/creator account via Business Discovery API."""
+        resp = requests.get(
+            self._url(self.account_id),
+            params=self._params({
+                "fields": "business_discovery.fields(id,username,media.limit(12){id,media_type,media_url,timestamp})",
+                "username": username.lstrip("@"),
+            }),
+            timeout=15,
+        )
+        if not resp.ok:
+            try:
+                ig_error = resp.json().get("error", {})
+                msg = ig_error.get("message") or resp.text
+                code = ig_error.get("code", "")
+                detail = f"Instagram API error ({resp.status_code}): {msg}"
+                if code:
+                    detail += f" [code {code}]"
+            except Exception:
+                detail = f"{resp.status_code} {resp.text}"
+            raise requests.HTTPError(detail, response=resp)
+        discovery = resp.json().get("business_discovery", {})
+        return discovery.get("media", {}).get("data", [])
+
     def get_all_media(self) -> list:
         """Paginate through all posts and return id, media_url, and timestamp."""
         results = []

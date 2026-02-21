@@ -50,8 +50,8 @@ class Config:
     )
     
     # Version
-    APP_VERSION = "1.2.4"
-    APP_VERSION_DATE = "Feb 21, 2026 · 3:52 PM EST"
+    APP_VERSION = "1.3.1"
+    APP_VERSION_DATE = "Feb 21, 2026 · 6:05 PM EST"
 
     # Rate limits
     MIN_POST_GAP_MINUTES = 50

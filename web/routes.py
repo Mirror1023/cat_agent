@@ -3,7 +3,7 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, send_file, abort
 from pathlib import Path
 from web.auth import verify_password, login_required, login_user, logout_user
-from agent.models import Session, Post, ActivityLog, CommentReply, log_activity, get_setting, set_setting
+from agent.models import Session, Post, ActivityLog, CommentReply, EngagementAction, log_activity, get_setting, set_setting
 from agent.caption_generator import CaptionGenerator
 from agent.image_sourcer import ImageSourcer
 from agent.instagram_client import InstagramClient
@@ -45,6 +45,9 @@ def register_routes(app):
             failed_24h = session.query(Post).filter(Post.status == "failed").filter(Post.created_at >= since_24h).count()
             total_all = session.query(Post).count()
             recent_posts = session.query(Post).order_by(Post.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+            total_likes_given = session.query(EngagementAction).filter_by(action="like").count()
+            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            likes_given_today = session.query(EngagementAction).filter(EngagementAction.action == "like").filter(EngagementAction.created_at >= today_start).count()
             scheduler = app.scheduler
             scheduler_status = scheduler.is_running() if scheduler else False
             next_post = scheduler.get_next_run() if scheduler else "N/A"
@@ -62,6 +65,7 @@ def register_routes(app):
                 recent_posts=recent_posts,
                 scheduler_status=scheduler_status, next_post=next_post,
                 ig_info=ig_info, ig_stats=ig_stats,
+                total_likes_given=total_likes_given, likes_given_today=likes_given_today,
                 page=page, per_page=per_page, total_all=total_all)
         finally:
             Session.remove()
@@ -178,11 +182,32 @@ def register_routes(app):
                 new_val = "false" if current == "true" else "true"
                 set_setting("enable_comment_replies", new_val)
                 flash(f"Comment replies {'enabled' if new_val == 'true' else 'disabled'}", "success")
+            elif action == "toggle_engagement":
+                current = get_setting("enable_engagement", "true")
+                new_val = "false" if current == "true" else "true"
+                set_setting("enable_engagement", new_val)
+                flash(f"Engagement {'enabled' if new_val == 'true' else 'disabled'}", "success")
+            elif action == "update_engagement":
+                hashtags = request.form.get("engagement_hashtags", "").strip()
+                per_cycle = request.form.get("likes_per_cycle", "5").strip()
+                set_setting("engagement_hashtags", hashtags)
+                set_setting("likes_per_cycle", per_cycle)
+                flash("Engagement settings saved", "success")
+            elif action == "update_vip":
+                raw = request.form.get("vip_accounts", "").strip()
+                # Normalise — accept newlines or commas, store as comma-separated
+                accounts = [a.strip().lstrip("@") for line in raw.splitlines() for a in line.split(",") if a.strip()]
+                set_setting("vip_accounts", ",".join(accounts))
+                flash("VIP accounts updated", "success")
             return redirect(url_for("settings"))
 
         return render_template("settings.html",
             image_source=get_setting("image_source", "random"),
-            comment_replies=get_setting("enable_comment_replies", "true") == "true")
+            comment_replies=get_setting("enable_comment_replies", "true") == "true",
+            engagement_enabled=get_setting("enable_engagement", "true") == "true",
+            engagement_hashtags=get_setting("engagement_hashtags", "cats,catsofinstagram,catlovers,kittens,catlife,meow,kitty,catoftheday"),
+            likes_per_cycle=get_setting("likes_per_cycle", "5"),
+            vip_accounts=get_setting("vip_accounts", ""))
 
     @app.route("/api/preview", methods=["POST"])
     @login_required
