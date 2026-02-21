@@ -1,0 +1,34 @@
+# Environment
+.env
+venv/
+.venv/
+
+# Database
+data/*.db
+data/*.db-journal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Images (keep folder structure but not the images)
+images/local/*.jpg
+images/local/*.jpeg
+images/local/*.png
+images/local/*.webp
+!images/local/.gitkeep
+images/history/
+
+# Static assets (personal photos)
+web/static/mascot.jpg

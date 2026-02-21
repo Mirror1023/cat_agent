@@ -1,0 +1,64 @@
+{% extends "base.html" %}{% block title %}Schedule — CatGram{% endblock %}
+{% block content %}
+<h1 class="page-title">Auto-Posting Schedule</h1>
+<p class="subtitle">Configure automatic posting intervals</p>
+
+<div class="stats" style="grid-template-columns:repeat(3,1fr);max-width:500px">
+  <div class="stat">
+    <div class="stat-value">{% if scheduler_running %}<span style="color:var(--green)">ON</span>{% else %}<span style="color:var(--red)">OFF</span>{% endif %}</div>
+    <div class="stat-label">Status</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ interval_hours }}h</div>
+    <div class="stat-label">Interval</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ max_per_day }}</div>
+    <div class="stat-label">Max / Day</div>
+  </div>
+</div>
+
+{% if scheduler_running %}
+<div class="card" style="text-align:center;border-color:var(--accent-border);background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%);margin-bottom:20px">
+  <div class="card-title" style="justify-content:center">Next Scheduled Post</div>
+  <p style="font-size:20px;font-weight:700;color:var(--accent)">{{ next_run }}</p>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+<div class="card">
+  <div class="card-title">Scheduler Control</div>
+  {% if scheduler_running %}
+  <p style="font-size:13.5px;color:var(--text-dim);margin-bottom:16px">The scheduler is active and posting on your set interval.</p>
+  <form method="POST">
+    <input type="hidden" name="action" value="stop">
+    <button class="btn btn-red">Stop Scheduler</button>
+  </form>
+  {% else %}
+  <p style="font-size:13.5px;color:var(--text-dim);margin-bottom:16px">The scheduler is paused. Start it to resume automatic posting.</p>
+  <form method="POST">
+    <input type="hidden" name="action" value="start">
+    <button class="btn btn-green">Start Scheduler</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title">Posting Settings</div>
+  <form method="POST">
+    <input type="hidden" name="action" value="update">
+    <div class="form-group">
+      <label>Post every (hours)</label>
+      <input type="number" name="interval_hours" value="{{ interval_hours }}" min="1" max="168">
+    </div>
+    <div class="form-group">
+      <label>Max posts per day</label>
+      <input type="number" name="max_per_day" value="{{ max_per_day }}" min="1" max="25">
+    </div>
+    <button class="btn btn-primary" type="submit">Save Settings</button>
+  </form>
+</div>
+
+</div>
+{% endblock %}

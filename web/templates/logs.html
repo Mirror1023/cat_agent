@@ -1,0 +1,52 @@
+{% extends "base.html" %}{% block title %}Logs — CatGram{% endblock %}
+{% block content %}
+<h1 class="page-title">Activity Logs</h1>
+<p class="subtitle">Full audit trail of agent actions</p>
+
+<div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+  <a href="?level=all" class="btn {% if level_filter == 'all' %}btn-primary{% else %}btn-outline{% endif %}" style="padding:6px 14px">All</a>
+  <a href="?level=success" class="btn btn-outline" style="padding:6px 14px;{% if level_filter == 'success' %}background:var(--green-bg);border-color:var(--green-border);color:var(--green){% endif %}">Success</a>
+  <a href="?level=info" class="btn btn-outline" style="padding:6px 14px;{% if level_filter == 'info' %}background:var(--blue-bg);border-color:var(--blue-border);color:var(--blue){% endif %}">Info</a>
+  <a href="?level=warning" class="btn btn-outline" style="padding:6px 14px;{% if level_filter == 'warning' %}background:var(--amber-bg);border-color:var(--amber-border);color:var(--amber){% endif %}">Warning</a>
+  <a href="?level=error" class="btn btn-outline" style="padding:6px 14px;{% if level_filter == 'error' %}background:var(--red-bg);border-color:var(--red-border);color:var(--red){% endif %}">Error</a>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden">
+  {% if logs %}
+  <table>
+    <thead>
+      <tr>
+        <th style="padding-left:20px">Level</th>
+        <th>Action</th>
+        <th>Details</th>
+        <th style="white-space:nowrap;padding-right:20px">Time</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for log in logs %}
+    <tr>
+      <td style="padding-left:20px">
+        {% if log.level == 'success' %}<span class="badge badge-green">success</span>
+        {% elif log.level == 'error' %}<span class="badge badge-red">error</span>
+        {% elif log.level == 'warning' %}<span class="badge badge-amber">warning</span>
+        {% else %}<span class="badge badge-blue">info</span>{% endif %}
+      </td>
+      <td style="font-weight:600;font-size:13px;color:var(--text)">{{ log.action }}</td>
+      <td style="font-size:13px;color:var(--text-dim);max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ log.details or '—' }}</td>
+      <td style="white-space:nowrap;font-size:12.5px;color:var(--text-muted);padding-right:20px">{{ log.created_at | nyc_time('%b %d, %-I:%M:%S %p') }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if total > per_page %}
+  <div class="pagination" style="padding:14px">
+    {% if page > 1 %}<a href="?level={{ level_filter }}&page={{ page-1 }}" class="btn btn-outline" style="padding:6px 14px;font-size:13px">← Prev</a>{% endif %}
+    <span class="page-info">Page {{ page }} of {{ ((total-1)//per_page)+1 }}</span>
+    {% if page * per_page < total %}<a href="?level={{ level_filter }}&page={{ page+1 }}" class="btn btn-outline" style="padding:6px 14px;font-size:13px">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p style="color:var(--text-dim);padding:24px">No log entries found.</p>
+  {% endif %}
+</div>
+{% endblock %}

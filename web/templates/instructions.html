@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Instructions — CatGram{% endblock %}
+{% block content %}
+<h1 class="page-title">Agent Instructions</h1>
+<p class="subtitle">Control how your AI writes captions and replies to comments</p>
+
+<div class="card">
+  <div class="card-title">Persona &amp; Instructions</div>
+  <form method="POST">
+    <div class="form-group">
+      <label>Agent Persona</label>
+      <textarea name="agent_persona" rows="4" placeholder="Describe the agent's personality…">{{ agent_persona }}</textarea>
+      <div class="form-hint">Sets the overall tone. Example: "You are a playful, witty cat lover who uses cat puns and warm emojis."</div>
+    </div>
+    <div class="form-group">
+      <label>Custom Instructions</label>
+      <textarea name="custom_instructions" rows="4" placeholder="Any specific rules or preferences…">{{ custom_instructions }}</textarea>
+      <div class="form-hint">Additional rules appended to every prompt. Example: "Never mention dogs. Always include one fun cat fact."</div>
+    </div>
+    <button class="btn btn-primary" type="submit">Save Instructions</button>
+  </form>
+</div>
+{% endblock %}

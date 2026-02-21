@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% block title %}Settings — CatGram{% endblock %}
+{% block content %}
+<h1 class="page-title">Settings</h1>
+<p class="subtitle">Configure image sources and features</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+<div class="card">
+  <div class="card-title">Default Image Source</div>
+  <form method="POST">
+    <input type="hidden" name="action" value="update_source">
+    <div class="form-group">
+      <label>Source</label>
+      <select name="image_source">
+        <option value="cat_api" {% if image_source == 'cat_api' %}selected{% endif %}>The Cat API</option>
+        <option value="dalle" {% if image_source == 'dalle' %}selected{% endif %}>DALL-E (AI generated)</option>
+        <option value="local" {% if image_source == 'local' %}selected{% endif %}>Local Folder</option>
+        <option value="random" {% if image_source == 'random' %}selected{% endif %}>Random</option>
+      </select>
+      <div class="form-hint">Used by the scheduler for automatic posts.</div>
+    </div>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-title">Comment Auto-Replies</div>
+  <p style="margin-bottom:6px;font-size:13.5px;color:var(--text-dim)">Automatically reply to comments on recent posts using Claude.</p>
+  <p style="margin-bottom:16px">
+    Status: {% if comment_replies %}<span class="badge badge-green">Enabled</span>{% else %}<span class="badge badge-red">Disabled</span>{% endif %}
+  </p>
+  <form method="POST">
+    <input type="hidden" name="action" value="toggle_replies">
+    <button class="btn {% if comment_replies %}btn-red{% else %}btn-green{% endif %}">
+      {% if comment_replies %}Disable{% else %}Enable{% endif %} Replies
+    </button>
+  </form>
+</div>
+
+</div>
+
+<div class="card">
+  <div class="card-title">Instagram Connection</div>
+  <p style="margin-bottom:16px;font-size:13.5px;color:var(--text-dim)">Verify your Instagram API credentials are working.</p>
+  <button class="btn btn-outline" onclick="testConn()">Test Connection</button>
+  <p id="conn-result" style="margin-top:14px;font-size:13.5px;font-weight:500"></p>
+</div>
+
+<script>
+async function testConn(){
+  const el=document.getElementById('conn-result');
+  el.textContent='Testing…';el.style.color='var(--text-dim)';
+  try{
+    const r=await fetch('/api/test-connection');const d=await r.json();
+    el.textContent=d.message;el.style.color=d.success?'var(--green)':'var(--red)';
+  }catch(e){el.textContent='Request failed';el.style.color='var(--red)'}
+}
+</script>
+{% endblock %}

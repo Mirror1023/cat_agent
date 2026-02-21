@@ -1,0 +1,128 @@
+{% extends "base.html" %}{% block title %}Dashboard — CatGram{% endblock %}
+{% block content %}
+{% if ig_info %}
+<div class="card" style="margin-bottom:24px">
+  <div style="display:flex;align-items:center;gap:20px">
+    {% if ig_info.profile_picture_url %}
+    <img src="{{ ig_info.profile_picture_url }}" alt="Profile" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2.5px solid var(--accent);box-shadow:0 0 0 4px var(--accent-glow);flex-shrink:0">
+    {% else %}
+    <div style="width:72px;height:72px;border-radius:50%;background:var(--surface2);border:2.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">🐱</div>
+    {% endif %}
+    <div style="flex:1;min-width:0">
+      <div style="font-size:19px;font-weight:700;color:var(--text)">@{{ ig_info.username }}</div>
+      <div style="color:var(--text-dim);font-size:13px;margin-top:4px">
+        <span style="color:var(--text);font-weight:600">{{ ig_info.followers_count|default(0) }}</span> followers &nbsp;·&nbsp;
+        <span style="color:var(--text);font-weight:600">{{ ig_info.follows_count|default(0) }}</span> following &nbsp;·&nbsp;
+        <span style="color:var(--text);font-weight:600">{{ ig_info.media_count|default(0) }}</span> posts
+      </div>
+      {% if ig_info.biography %}
+      <div style="margin-top:8px;font-size:13px;color:var(--text-dim);line-height:1.5">{{ ig_info.biography }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="margin-bottom:24px;border-color:var(--amber-border)">
+  <div style="color:var(--amber);font-size:13.5px">Instagram not connected — check <a href="{{ url_for('settings') }}" style="color:var(--accent)">Settings</a></div>
+</div>
+{% endif %}
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-value">{{ ig_info.media_count if ig_info else '—' }}</div>
+    <div class="stat-label">Posts</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ ig_info.followers_count if ig_info else '—' }}</div>
+    <div class="stat-label">Followers</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ ig_info.follows_count if ig_info else '—' }}</div>
+    <div class="stat-label">Following</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ ig_stats.total_likes if ig_stats else '—' }}</div>
+    <div class="stat-label">Total Likes</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ ig_stats.avg_likes_per_post if ig_stats else '—' }}</div>
+    <div class="stat-label">Avg Likes</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ ig_stats.total_comments if ig_stats else '—' }}</div>
+    <div class="stat-label">Total Replies</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ ig_stats.avg_comments_per_post if ig_stats else '—' }}</div>
+    <div class="stat-label">Avg Replies</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" style="color:var(--red)">{{ failed_posts }}</div>
+    <div class="stat-label" style="color:var(--red)">Posts Failed</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" style="color:{% if failed_24h > 0 %}var(--red){% else %}var(--green){% endif %}">{{ failed_24h }}</div>
+    <div class="stat-label">Failed (24h)</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{% if scheduler_status %}<span style="color:var(--green)">ON</span>{% else %}<span style="color:var(--red)">OFF</span>{% endif %}</div>
+    <div class="stat-label">Scheduler</div>
+  </div>
+</div>
+
+{% if scheduler_status %}
+<div class="card" style="text-align:center;border-color:var(--accent-border);background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%)">
+  <div class="card-title" style="justify-content:center">Next Scheduled Post</div>
+  <p style="font-size:20px;font-weight:700;color:var(--accent);letter-spacing:-0.3px">{{ next_post }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-title">Recent Posts</div>
+  {% if recent_posts %}
+  <table>
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Caption</th>
+        <th>Source</th>
+        <th>Date</th>
+        <th style="width:40px"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for post in recent_posts %}
+    <tr>
+      <td>
+        {% if post.status == 'posted' %}<span class="badge badge-green">Posted</span>
+        {% elif post.status == 'failed' %}<span class="badge badge-red">Failed</span>
+        {% else %}<span class="badge badge-amber">{{ post.status }}</span>{% endif %}
+      </td>
+      <td title="{{ post.caption or '' }}" style="cursor:default;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-dim)">
+        <span style="color:var(--text)">{{ (post.caption or '')[:55] }}</span>{% if post.caption and post.caption|length > 55 %}<span style="color:var(--text-muted)">…</span>{% endif %}
+      </td>
+      <td>
+        <span style="font-size:12px;color:var(--text-muted);background:var(--surface2);padding:2px 8px;border-radius:99px;border:1px solid var(--border-soft)">{{ post.image_source or '—' }}</span>
+      </td>
+      <td style="white-space:nowrap;color:var(--text-dim);font-size:13px">{{ post.created_at | nyc_time('%b %d, %-I:%M %p') }}</td>
+      <td>
+        <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" onsubmit="return confirm('Delete this post{% if post.instagram_media_id %} from Instagram and{% endif %} the dashboard?')">
+          <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:15px;padding:4px;border-radius:4px;transition:color .15s" title="Delete post" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-muted)'">✕</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if total_all > per_page %}
+  <div class="pagination">
+    {% if page > 1 %}<a href="?page={{ page - 1 }}" class="btn btn-outline" style="padding:6px 14px;font-size:13px">← Prev</a>{% endif %}
+    <span class="page-info">Page {{ page }} of {{ ((total_all - 1) // per_page) + 1 }}</span>
+    {% if page * per_page < total_all %}<a href="?page={{ page + 1 }}" class="btn btn-outline" style="padding:6px 14px;font-size:13px">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p style="color:var(--text-dim);font-size:13.5px">No posts yet. Head to <a href="{{ url_for('compose') }}" style="color:var(--accent)">Compose</a> to create your first post.</p>
+  {% endif %}
+</div>
+{% endblock %}

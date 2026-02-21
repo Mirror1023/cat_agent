@@ -1,0 +1,102 @@
+{% extends "base.html" %}{% block title %}Compose — CatGram{% endblock %}
+{% block content %}
+<h1 class="page-title">Compose Post</h1>
+<p class="subtitle">Create and publish a new post to Instagram</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+<div class="card">
+  <div class="card-title">Post Settings</div>
+  <form id="compose-form" method="POST">
+    <div class="form-group">
+      <label>Image Source</label>
+      <select name="image_source" onchange="clearPreview()">
+        <option value="cat_api">The Cat API — random cats</option>
+        <option value="dalle">DALL-E — AI generated{% if not has_openai %} (no key){% endif %}</option>
+        <option value="local">Local Folder — {{ local_count }} image{{ 's' if local_count != 1 }}</option>
+        <option value="random">Random — surprise me</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Custom Caption <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--text-muted)">(optional)</span></label>
+      <textarea name="custom_caption" rows="3" placeholder="Leave empty to let Claude write one…"></textarea>
+      <div class="form-hint">When blank, Claude generates a caption after seeing the selected image.</div>
+    </div>
+    <input type="hidden" name="preview_image_url" id="preview_image_url">
+    <input type="hidden" name="preview_image_source" id="preview_image_source">
+    <input type="hidden" name="preview_caption" id="preview_caption_hidden">
+    <input type="hidden" name="preview_hashtags" id="preview_hashtags_hidden">
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button type="button" class="btn btn-primary" onclick="previewPost()">Preview Post</button>
+      <button type="submit" class="btn btn-outline" onclick="return publishWithoutPreview()">Publish Directly</button>
+    </div>
+  </form>
+</div>
+
+<div id="preview" class="card" style="display:none">
+  <div class="card-title">Post Preview</div>
+  <div id="preview-loading" style="text-align:center;padding:24px 0;display:none">
+    <div style="font-size:13px;color:var(--text-dim)">Selecting best image &amp; writing caption…</div>
+  </div>
+  <div id="preview-content" style="display:none">
+    <img id="preview-img" style="display:none;width:100%;border-radius:var(--radius-sm);margin-bottom:14px;object-fit:cover;max-height:320px">
+    <p id="preview-caption" style="font-size:14px;line-height:1.6;color:var(--text)"></p>
+    <p id="preview-hashtags" style="color:var(--accent);margin-top:8px;font-size:13px;line-height:1.6"></p>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft)">
+      <button type="submit" form="compose-form" class="btn btn-primary" style="width:100%;justify-content:center">Publish This Post</button>
+    </div>
+  </div>
+  <div id="preview-error" style="display:none;color:var(--red);font-size:13.5px"></div>
+</div>
+
+</div>
+
+<script>
+function clearPreview(){
+  document.getElementById('preview_image_url').value='';
+  document.getElementById('preview_image_source').value='';
+  document.getElementById('preview_caption_hidden').value='';
+  document.getElementById('preview_hashtags_hidden').value='';
+  document.getElementById('preview').style.display='none';
+}
+function publishWithoutPreview(){
+  clearPreview();
+  return confirm('Publish directly to Instagram without previewing?');
+}
+async function previewPost(){
+  const source=document.querySelector('select[name="image_source"]').value;
+  const p=document.getElementById('preview');
+  const loading=document.getElementById('preview-loading');
+  const content=document.getElementById('preview-content');
+  const errEl=document.getElementById('preview-error');
+  p.style.display='block';
+  loading.style.display='block';
+  content.style.display='none';
+  errEl.style.display='none';
+  document.getElementById('preview-img').style.display='none';
+  try{
+    const res=await fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_source:source})});
+    const data=await res.json();
+    loading.style.display='none';
+    if(data.success){
+      document.getElementById('preview-caption').textContent=data.caption;
+      document.getElementById('preview-hashtags').textContent=data.hashtags;
+      const img=document.getElementById('preview-img');
+      img.src=data.url;img.style.display='block';
+      document.getElementById('preview_image_url').value=data.raw_url||'';
+      document.getElementById('preview_image_source').value=data.image_source||'';
+      document.getElementById('preview_caption_hidden').value=data.caption||'';
+      document.getElementById('preview_hashtags_hidden').value=data.hashtags||'';
+      content.style.display='block';
+    } else {
+      errEl.textContent='Error: '+data.error;
+      errEl.style.display='block';
+    }
+  }catch(e){
+    loading.style.display='none';
+    errEl.textContent='Request failed — check your connection.';
+    errEl.style.display='block';
+  }
+}
+</script>
+{% endblock %}
