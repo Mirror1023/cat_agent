@@ -45,10 +45,15 @@ RESPOND IN JSON FORMAT ONLY:
 
         return system
 
-    def generate_caption(self, context: str = None, image_url: str = None) -> dict:
+    def generate_caption(self, context: str = None, image_url: str = None, is_video: bool = False) -> dict:
         now_nyc = datetime.now(ZoneInfo("America/New_York"))
         day_time = now_nyc.strftime("%A, %B %-d at %-I:%M %p EST")
-        text = f"Generate an Instagram caption and hashtags for this cat photo. Base the caption on what you actually see in the image. Today is {day_time}."
+        if is_video and image_url:
+            text = f"Generate an Instagram caption and hashtags for this cat Reel. This is a thumbnail frame from the video — base the caption on what you see happening with the cat. Today is {day_time}."
+        elif is_video:
+            text = f"Generate an Instagram caption and hashtags for a cat Reel. Today is {day_time}."
+        else:
+            text = f"Generate an Instagram caption and hashtags for this cat photo. Base the caption on what you actually see in the image. Today is {day_time}."
         if context:
             text += f"\n\nAdditional context: {context}"
 
@@ -103,7 +108,10 @@ RESPOND IN JSON FORMAT ONLY:
         if len(candidates) == 1:
             return candidates[0]
 
-        scorable = [c for c in candidates if not c["url"].startswith("LOCAL:")]
+        scorable = [
+            c for c in candidates
+            if not c["url"].startswith("LOCAL:") and c.get("media_type") != "video"
+        ]
         if not scorable:
             chosen = random.choice(candidates)
             log_activity("image_selection_local", "All candidates are local; picked randomly", level="info")

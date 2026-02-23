@@ -91,6 +91,9 @@ class PostScheduler:
         finally:
             Session.remove()
 
+    def _is_video_candidate(self, image_data: dict) -> bool:
+        return image_data.get("media_type") == "video"
+
     def auto_post(self):
         log_activity("auto_post_starting", "Beginning auto-post cycle")
         if not self._check_rate_limits():
@@ -102,19 +105,25 @@ class PostScheduler:
             candidates = self.image_sourcer.get_image_candidates(used_urls=used_urls)
             image_data = self.captioner.select_best_image(candidates)
             image_url = image_data["url"]
+            is_video = self._is_video_candidate(image_data)
             post.image_source = image_data["source"]
             post.image_url = image_url
+            post.media_type = "video" if is_video else "image"
             if image_url.startswith("LOCAL:"):
                 local_path = image_data.get("local_path", "")
                 image_url = self.image_sourcer.upload_to_hosting(local_path)
                 post.image_url = image_url
-            caption_data = self.captioner.generate_caption(context=image_data.get("context"), image_url=image_url)
+            caption_url = image_data.get("thumbnail_url") if is_video else image_url
+            caption_data = self.captioner.generate_caption(context=image_data.get("context"), image_url=caption_url or None, is_video=is_video)
             caption = caption_data["caption"]
             hashtags = caption_data["hashtags"]
             full_caption = f"{caption}\n\n{hashtags}"
             post.caption = caption
             post.hashtags = hashtags
-            media_id = self.ig.publish_post(image_url, full_caption)
+            if is_video:
+                media_id = self.ig.publish_reel(image_url, full_caption)
+            else:
+                media_id = self.ig.publish_post(image_url, full_caption)
             post.instagram_media_id = media_id
             post.status = "posted"
             post.posted_at = utcnow()
@@ -133,7 +142,8 @@ class PostScheduler:
 
     def manual_post(self, image_source: str = None, custom_caption: str = None,
                     preview_image_url: str = None, preview_image_source: str = None,
-                    preview_caption: str = None, preview_hashtags: str = None) -> dict:
+                    preview_caption: str = None, preview_hashtags: str = None,
+                    preview_media_type: str = None) -> dict:
         session = Session()
         post = Post(status="draft", created_at=utcnow())
         try:
@@ -141,6 +151,7 @@ class PostScheduler:
                 image_url = preview_image_url
                 post.image_source = preview_image_source or image_source or "unknown"
                 post.image_url = image_url
+                is_video = preview_media_type == "video"
                 if image_url.startswith("LOCAL:"):
                     local_path = image_url[len("LOCAL:"):]
                     image_url = self.image_sourcer.upload_to_hosting(local_path)
@@ -151,6 +162,7 @@ class PostScheduler:
                 candidates = self.image_sourcer.get_image_candidates(source=image_source, used_urls=used_urls)
                 image_data = self.captioner.select_best_image(candidates)
                 image_url = image_data["url"]
+                is_video = self._is_video_candidate(image_data)
                 post.image_source = image_data["source"]
                 post.image_url = image_url
                 if image_url.startswith("LOCAL:"):
@@ -158,6 +170,7 @@ class PostScheduler:
                     image_url = self.image_sourcer.upload_to_hosting(local_path)
                     post.image_url = image_url
                 image_context = image_data.get("context")
+            post.media_type = "video" if is_video else "image"
             if preview_caption:
                 caption = preview_caption
                 hashtags = preview_hashtags or ""
@@ -165,13 +178,17 @@ class PostScheduler:
                 caption = custom_caption
                 hashtags = ""
             else:
-                caption_data = self.captioner.generate_caption(context=image_context, image_url=image_url)
+                caption_url = image_data.get("thumbnail_url") if is_video else image_url
+                caption_data = self.captioner.generate_caption(context=image_context, image_url=caption_url or None, is_video=is_video)
                 caption = caption_data["caption"]
                 hashtags = caption_data["hashtags"]
             full_caption = f"{caption}\n\n{hashtags}".strip()
             post.caption = caption
             post.hashtags = hashtags
-            media_id = self.ig.publish_post(image_url, full_caption)
+            if is_video:
+                media_id = self.ig.publish_reel(image_url, full_caption)
+            else:
+                media_id = self.ig.publish_post(image_url, full_caption)
             post.instagram_media_id = media_id
             post.status = "posted"
             post.posted_at = utcnow()

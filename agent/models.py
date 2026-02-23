@@ -26,6 +26,7 @@ class Post(Base):
     scheduled_at = Column(DateTime, nullable=True)
     posted_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)
+    media_type = Column(String(20), default="image", nullable=True)
     likes = Column(Integer, default=0)
     comments_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=utcnow)
@@ -36,6 +37,7 @@ class Post(Base):
             "instagram_media_id": self.instagram_media_id,
             "image_url": self.image_url,
             "image_source": self.image_source,
+            "media_type": self.media_type or "image",
             "caption": self.caption,
             "hashtags": self.hashtags,
             "status": self.status,
@@ -94,6 +96,16 @@ class AgentSettings(Base):
 def init_db():
     """Create all tables and seed default settings."""
     Base.metadata.create_all(engine)
+
+    # Idempotent migration: add media_type column if missing (SQLite ALTER TABLE)
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    existing_cols = [c["name"] for c in inspector.get_columns("posts")]
+    if "media_type" not in existing_cols:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE posts ADD COLUMN media_type TEXT DEFAULT 'image'"))
+            conn.commit()
+
     session = Session()
     
     defaults = {

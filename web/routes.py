@@ -80,6 +80,8 @@ def register_routes(app):
             preview_image_source = request.form.get("preview_image_source", "").strip() or None
             preview_caption = request.form.get("preview_caption", "").strip() or None
             preview_hashtags = request.form.get("preview_hashtags", "").strip() or None
+            _raw_mt = request.form.get("preview_media_type", "").strip()
+            preview_media_type = _raw_mt if _raw_mt in ("image", "video") else None
             try:
                 scheduler = app.scheduler
                 result = scheduler.manual_post(
@@ -89,14 +91,21 @@ def register_routes(app):
                     preview_image_source=preview_image_source,
                     preview_caption=preview_caption,
                     preview_hashtags=preview_hashtags,
+                    preview_media_type=preview_media_type,
                 )
                 flash("Post published successfully!", "success")
                 return redirect(url_for("dashboard"))
             except Exception as e:
                 flash(f"Post failed: {str(e)}", "error")
+        from config import Config as _Config
         sourcer = ImageSourcer()
         local_count = sourcer.get_local_image_count()
-        return render_template("compose.html", local_count=local_count, has_openai=bool(app.config.get("OPENAI_API_KEY", "")))
+        local_video_count = sourcer.get_local_video_count()
+        return render_template("compose.html",
+            local_count=local_count,
+            local_video_count=local_video_count,
+            has_openai=bool(app.config.get("OPENAI_API_KEY", "")),
+            has_pexels=bool(_Config.PEXELS_API_KEY))
 
     @app.route("/api/preview-caption", methods=["POST"])
     @login_required
@@ -220,19 +229,24 @@ def register_routes(app):
             candidates = sourcer.get_image_candidates(source=source)
             image_data = captioner.select_best_image(candidates)
             raw_url = image_data["url"]
+            media_type = image_data.get("media_type", "image")
             display_url = raw_url
             if raw_url.startswith("LOCAL:"):
                 filename = Path(image_data.get("local_path", "")).name
                 display_url = f"/api/local-image?path={filename}"
+            is_video = media_type == "video"
+            caption_url = image_data.get("thumbnail_url") if is_video else raw_url
             result = captioner.generate_caption(
                 context=image_data.get("context"),
-                image_url=raw_url,
+                image_url=caption_url or None,
+                is_video=is_video,
             )
             return jsonify({
                 "success": True,
                 "url": display_url,
                 "raw_url": raw_url,
                 "image_source": image_data["source"],
+                "media_type": media_type,
                 "caption": result["caption"],
                 "hashtags": result["hashtags"],
             })
@@ -263,12 +277,19 @@ def register_routes(app):
         filename = request.args.get("path", "")
         if not filename:
             abort(400)
+        # Strip any directory components so only a bare filename is accepted
+        filename = Path(filename).name
+        if not filename:
+            abort(400)
         from config import Config
         base = Path(Config.LOCAL_IMAGES_DIR).resolve()
         image_path = (base / filename).resolve()
         try:
             image_path.relative_to(base)
         except ValueError:
+            abort(403)
+        # Reject symlinks to prevent escaping the local dir via planted links
+        if image_path.is_symlink():
             abort(403)
         if not image_path.exists():
             abort(404)

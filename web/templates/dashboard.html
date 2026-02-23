@@ -27,55 +27,56 @@
 </div>
 {% endif %}
 
-<div class="stats">
-  <div class="stat">
-    <div class="stat-value">{{ ig_info.media_count if ig_info else '—' }}</div>
-    <div class="stat-label">Posts</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px">
+
+  <!-- Profile -->
+  <div style="background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;display:flex;align-items:center;gap:7px">
+      <span style="display:block;width:3px;height:11px;background:var(--accent);border-radius:2px"></span>Profile
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_info.followers_count if ig_info else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Followers</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_info.follows_count if ig_info else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Following</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_info.media_count if ig_info else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Posts</div></div>
+    </div>
   </div>
-  <div class="stat">
-    <div class="stat-value">{{ ig_info.followers_count if ig_info else '—' }}</div>
-    <div class="stat-label">Followers</div>
+
+  <!-- System -->
+  <div style="background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;display:flex;align-items:center;gap:7px">
+      <span style="display:block;width:3px;height:11px;background:var(--accent);border-radius:2px"></span>System
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">
+      <div><div style="font-size:22px;font-weight:700;line-height:1;margin-bottom:4px">{% if scheduler_status %}<span style="color:var(--green)">ON</span>{% else %}<span style="color:var(--red)">OFF</span>{% endif %}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Scheduler</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:var(--red);line-height:1;margin-bottom:4px">{{ failed_posts }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Posts Failed</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:{% if failed_24h > 0 %}var(--red){% else %}var(--green){% endif %};line-height:1;margin-bottom:4px">{{ failed_24h }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Failed (24h)</div></div>
+    </div>
   </div>
-  <div class="stat">
-    <div class="stat-value">{{ ig_info.follows_count if ig_info else '—' }}</div>
-    <div class="stat-label">Following</div>
+
+  <!-- Content Performance -->
+  <div style="background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;display:flex;align-items:center;gap:7px">
+      <span style="display:block;width:3px;height:11px;background:var(--accent);border-radius:2px"></span>Content Performance
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center">
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_stats.total_likes if ig_stats else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Total Likes</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_stats.avg_likes_per_post if ig_stats else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Avg / Post</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_stats.total_comments if ig_stats else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Comments</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_stats.avg_comments_per_post if ig_stats else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Avg / Post</div></div>
+    </div>
   </div>
-  <div class="stat">
-    <div class="stat-value">{{ ig_stats.total_likes if ig_stats else '—' }}</div>
-    <div class="stat-label">Total Likes</div>
+
+  <!-- Our Activity -->
+  <div style="background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius);padding:18px 20px;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;display:flex;align-items:center;gap:7px">
+      <span style="display:block;width:3px;height:11px;background:var(--accent);border-radius:2px"></span>Our Activity
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;text-align:center">
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ total_likes_given }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Likes Given</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ likes_given_today }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Likes Today</div></div>
+    </div>
   </div>
-  <div class="stat">
-    <div class="stat-value">{{ ig_stats.avg_likes_per_post if ig_stats else '—' }}</div>
-    <div class="stat-label">Avg Likes</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">{{ ig_stats.total_comments if ig_stats else '—' }}</div>
-    <div class="stat-label">Total Replies</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">{{ ig_stats.avg_comments_per_post if ig_stats else '—' }}</div>
-    <div class="stat-label">Avg Replies</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value" style="color:var(--red)">{{ failed_posts }}</div>
-    <div class="stat-label" style="color:var(--red)">Posts Failed</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value" style="color:{% if failed_24h > 0 %}var(--red){% else %}var(--green){% endif %}">{{ failed_24h }}</div>
-    <div class="stat-label">Failed (24h)</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">{{ total_likes_given }}</div>
-    <div class="stat-label">Likes Given</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">{{ likes_given_today }}</div>
-    <div class="stat-label">Likes Today</div>
-  </div>
-  <div class="stat">
-    <div class="stat-value">{% if scheduler_status %}<span style="color:var(--green)">ON</span>{% else %}<span style="color:var(--red)">OFF</span>{% endif %}</div>
-    <div class="stat-label">Scheduler</div>
-  </div>
+
 </div>
 
 {% if scheduler_status %}

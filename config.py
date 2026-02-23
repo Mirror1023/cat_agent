@@ -25,6 +25,9 @@ class Config:
     
     # OpenAI (optional — for DALL-E)
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+    # Pexels (optional — for free cat videos)
+    PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
     
     # Instagram Platform API (Instagram Login — no Facebook Page required)
     INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
@@ -32,8 +35,12 @@ class Config:
     INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID", "")
     INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET", "")
     GRAPH_API_VERSION = "v21.0"
-    # Key change: use graph.instagram.com instead of graph.facebook.com
+    # graph.instagram.com — used for posting, comments, account info
     GRAPH_API_BASE = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
+    # graph.facebook.com — used for hashtag search and business discovery
+    FACEBOOK_PAGE_ACCESS_TOKEN = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN", "")
+    FACEBOOK_IG_ACCOUNT_ID = os.getenv("FACEBOOK_IG_ACCOUNT_ID", "")
+    FACEBOOK_GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
     
     # Admin
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
@@ -50,8 +57,8 @@ class Config:
     )
     
     # Version
-    APP_VERSION = "1.3.1"
-    APP_VERSION_DATE = "Feb 21, 2026 · 6:05 PM EST"
+    APP_VERSION = "1.4.0"
+    APP_VERSION_DATE = "Feb 22, 2026 · 12:00 PM EST"
 
     # Rate limits
     MIN_POST_GAP_MINUTES = 50

@@ -33,7 +33,10 @@ class InstagramClient:
     def __init__(self):
         self.access_token = Config.INSTAGRAM_ACCESS_TOKEN
         self.account_id = Config.INSTAGRAM_ACCOUNT_ID
-        self.base_url = Config.GRAPH_API_BASE  # https://graph.instagram.com/v21.0
+        self.base_url = Config.GRAPH_API_BASE          # https://graph.instagram.com/v21.0
+        self.fb_access_token = Config.FACEBOOK_PAGE_ACCESS_TOKEN
+        self.fb_ig_account_id = Config.FACEBOOK_IG_ACCOUNT_ID  # IG account ID via Facebook Login
+        self.fb_base_url = Config.FACEBOOK_GRAPH_API_BASE  # https://graph.facebook.com/v21.0
 
     def _url(self, path):
         return f"{self.base_url}/{path}"
@@ -129,11 +132,12 @@ class InstagramClient:
             resp.raise_for_status()
             status = resp.json().get("status_code", "UNKNOWN")
 
-            if status == "FINISHED":
+            if status in ("FINISHED", "PUBLISHED"):
                 return status
             elif status == "ERROR":
                 raise ValueError(f"Container {container_id} failed with ERROR status")
 
+            log_activity("ig_container_polling", f"Container {container_id} status: {status}", level="info")
             time.sleep(3)
 
         raise TimeoutError(f"Container {container_id} not ready after {max_wait}s")
@@ -157,6 +161,55 @@ class InstagramClient:
         container = self.create_media_container(image_url, caption)
         container_id = container["id"]
         self.wait_for_container(container_id)
+        result = self.publish_media(container_id)
+        return result["id"]
+
+    def validate_for_reel(self, video_url: str, caption: str):
+        """Validate caption and video URL before posting a Reel. Raises ValueError on failure."""
+        if len(caption) > IG_MAX_CAPTION_LENGTH:
+            raise ValueError(f"Caption too long: {len(caption)} chars (max {IG_MAX_CAPTION_LENGTH})")
+
+        hashtag_count = sum(1 for w in caption.split() if w.startswith("#"))
+        if hashtag_count > IG_MAX_HASHTAGS:
+            raise ValueError(f"Too many hashtags: {hashtag_count} (max {IG_MAX_HASHTAGS})")
+
+        try:
+            resp = requests.head(video_url, timeout=10, allow_redirects=True)
+            # Some CDNs (including Pexels) return 405 for HEAD — fall back to a streaming GET
+            if resp.status_code == 405:
+                resp = requests.get(video_url, timeout=10, allow_redirects=True, stream=True)
+                resp.close()
+            resp.raise_for_status()
+            content_type = resp.headers.get("Content-Type", "")
+            if not content_type.startswith("video/"):
+                raise ValueError(f"URL does not point to a video (Content-Type: {content_type})")
+        except requests.RequestException as e:
+            raise ValueError(f"Video URL is not accessible: {e}")
+
+    def create_reels_container(self, video_url: str, caption: str) -> dict:
+        """Create a Reels media container."""
+        url = self._url(f"{self.account_id}/media")
+        payload = self._params({
+            "media_type": "REELS",
+            "video_url": video_url,
+            "caption": caption,
+            "share_to_feed": "true",  # form-encoded as string; Instagram accepts both
+        })
+        resp = self._post_with_retry(url, payload)
+        data = resp.json()
+
+        if "id" not in data:
+            raise ValueError(f"Failed to create Reels container: {data}")
+
+        log_activity("ig_reels_container_created", f"Reels container ID: {data['id']}")
+        return data
+
+    def publish_reel(self, video_url: str, caption: str) -> str:
+        """Full Reels publish flow: validate → create container → wait → publish. Returns media ID."""
+        self.validate_for_reel(video_url, caption)
+        container = self.create_reels_container(video_url, caption)
+        container_id = container["id"]
+        self.wait_for_container(container_id, max_wait=300)
         result = self.publish_media(container_id)
         return result["id"]
 
@@ -260,10 +313,14 @@ class InstagramClient:
         return resp.json().get("data", [])
 
     def search_hashtag(self, hashtag: str) -> str:
-        """Look up a hashtag and return its ID."""
+        """Look up a hashtag and return its ID. Uses graph.facebook.com + Page token."""
         resp = requests.get(
-            f"{self.base_url}/ig-hashtag-search",
-            params=self._params({"user_id": self.account_id, "q": hashtag.lstrip("#")}),
+            f"{self.fb_base_url}/ig-hashtag-search",
+            params={
+                "access_token": self.fb_access_token,
+                "user_id": self.fb_ig_account_id,
+                "q": hashtag.lstrip("#"),
+            },
             timeout=15,
         )
         resp.raise_for_status()
@@ -271,14 +328,15 @@ class InstagramClient:
         return data[0]["id"] if data else None
 
     def get_hashtag_media(self, hashtag_id: str, limit: int = 20) -> list:
-        """Fetch recent image posts for a hashtag."""
+        """Fetch recent image posts for a hashtag. Uses graph.facebook.com + Page token."""
         resp = requests.get(
-            f"{self.base_url}/{hashtag_id}/recent_media",
-            params=self._params({
-                "user_id": self.account_id,
+            f"{self.fb_base_url}/{hashtag_id}/recent_media",
+            params={
+                "access_token": self.fb_access_token,
+                "user_id": self.fb_ig_account_id,
                 "fields": "id,media_type,media_url,timestamp",
                 "limit": limit,
-            }),
+            },
             timeout=15,
         )
         resp.raise_for_status()
@@ -305,6 +363,26 @@ class InstagramClient:
         log_activity("ig_commented", f"Commented on {media_id}: {message[:60]}", level="info")
         return True
 
+    def like_comment(self, comment_id: str) -> bool:
+        """Like a comment on our own media. Requires instagram_business_manage_comments."""
+        resp = requests.post(
+            self._url(f"{comment_id}/likes"),
+            data=self._params(),
+            timeout=15,
+        )
+        if not resp.ok:
+            try:
+                ig_error = resp.json().get("error", {})
+                msg = ig_error.get("message") or resp.text
+                code = ig_error.get("code", "")
+                detail = f"Instagram API error ({resp.status_code}): {msg}"
+                if code:
+                    detail += f" [code {code}]"
+            except Exception:
+                detail = f"{resp.status_code} {resp.text}"
+            raise requests.HTTPError(detail, response=resp)
+        return True
+
     def like_media(self, media_id: str) -> bool:
         """Like a media post. Requires instagram_manage_likes permission."""
         resp = requests.post(
@@ -326,14 +404,21 @@ class InstagramClient:
         log_activity("ig_liked", f"Liked media {media_id}", level="info")
         return True
 
-    def get_user_media_by_username(self, username: str) -> list:
-        """Fetch recent posts from another public business/creator account via Business Discovery API."""
+    def get_user_media_by_username(self, username: str, limit: int = 100) -> list:
+        """Fetch posts from another public business/creator account via Business Discovery API.
+        Uses graph.facebook.com + Facebook User token. Paginates to collect up to `limit` posts."""
+        results = []
+        fields = (
+            f"business_discovery.fields(id,username,"
+            f"media.limit(50){{id,media_type,media_url,timestamp,caption}})"
+        )
         resp = requests.get(
-            self._url(self.account_id),
-            params=self._params({
-                "fields": "business_discovery.fields(id,username,media.limit(12){id,media_type,media_url,timestamp})",
+            f"{self.fb_base_url}/{self.fb_ig_account_id}",
+            params={
+                "access_token": self.fb_access_token,
+                "fields": fields,
                 "username": username.lstrip("@"),
-            }),
+            },
             timeout=15,
         )
         if not resp.ok:
@@ -348,7 +433,19 @@ class InstagramClient:
                 detail = f"{resp.status_code} {resp.text}"
             raise requests.HTTPError(detail, response=resp)
         discovery = resp.json().get("business_discovery", {})
-        return discovery.get("media", {}).get("data", [])
+        media_page = discovery.get("media", {})
+        results.extend(media_page.get("data", []))
+        # Paginate for more history
+        while len(results) < limit:
+            next_url = media_page.get("paging", {}).get("next")
+            if not next_url:
+                break
+            resp = requests.get(next_url, timeout=15)
+            if not resp.ok:
+                break
+            media_page = resp.json()
+            results.extend(media_page.get("data", []))
+        return results[:limit]
 
     def get_all_media(self) -> list:
         """Paginate through all posts and return id, media_url, and timestamp."""

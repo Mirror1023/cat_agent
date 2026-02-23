@@ -14,6 +14,8 @@
         <option value="cat_api">The Cat API — random cats</option>
         <option value="dalle">DALL-E — AI generated{% if not has_openai %} (no key){% endif %}</option>
         <option value="local">Local Folder — {{ local_count }} image{{ 's' if local_count != 1 }}</option>
+        <option value="pexels"{% if not has_pexels %} disabled title="Set PEXELS_API_KEY in .env to enable"{% endif %}>Pexels — free cat videos{% if not has_pexels %} (no key){% endif %}</option>
+        <option value="local_video">Local Videos — {{ local_video_count }} video{{ 's' if local_video_count != 1 }}</option>
         <option value="random">Random — surprise me</option>
       </select>
     </div>
@@ -26,6 +28,7 @@
     <input type="hidden" name="preview_image_source" id="preview_image_source">
     <input type="hidden" name="preview_caption" id="preview_caption_hidden">
     <input type="hidden" name="preview_hashtags" id="preview_hashtags_hidden">
+    <input type="hidden" name="preview_media_type" id="preview_media_type">
     <div style="display:flex;gap:10px;margin-top:6px">
       <button type="button" class="btn btn-primary" onclick="previewPost()">Preview Post</button>
       <button type="submit" class="btn btn-outline" onclick="return publishWithoutPreview()">Publish Directly</button>
@@ -36,10 +39,11 @@
 <div id="preview" class="card" style="display:none">
   <div class="card-title">Post Preview</div>
   <div id="preview-loading" style="text-align:center;padding:24px 0;display:none">
-    <div style="font-size:13px;color:var(--text-dim)">Selecting best image &amp; writing caption…</div>
+    <div id="preview-loading-text" style="font-size:13px;color:var(--text-dim)">Selecting best image &amp; writing caption…</div>
   </div>
   <div id="preview-content" style="display:none">
     <img id="preview-img" style="display:none;width:100%;border-radius:var(--radius-sm);margin-bottom:14px;object-fit:cover;max-height:320px">
+    <video id="preview-video" style="display:none;width:100%;border-radius:var(--radius-sm);margin-bottom:14px;max-height:320px;background:#000" controls muted playsinline></video>
     <p id="preview-caption" style="font-size:14px;line-height:1.6;color:var(--text)"></p>
     <p id="preview-hashtags" style="color:var(--accent);margin-top:8px;font-size:13px;line-height:1.6"></p>
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border-soft)">
@@ -57,7 +61,11 @@ function clearPreview(){
   document.getElementById('preview_image_source').value='';
   document.getElementById('preview_caption_hidden').value='';
   document.getElementById('preview_hashtags_hidden').value='';
+  document.getElementById('preview_media_type').value='';
   document.getElementById('preview').style.display='none';
+  const vid=document.getElementById('preview-video');
+  vid.src='';vid.style.display='none';
+  document.getElementById('preview-img').style.display='none';
 }
 function publishWithoutPreview(){
   clearPreview();
@@ -65,15 +73,18 @@ function publishWithoutPreview(){
 }
 async function previewPost(){
   const source=document.querySelector('select[name="image_source"]').value;
+  const isVideoSource=['pexels','local_video'].includes(source);
   const p=document.getElementById('preview');
   const loading=document.getElementById('preview-loading');
   const content=document.getElementById('preview-content');
   const errEl=document.getElementById('preview-error');
+  document.getElementById('preview-loading-text').textContent=isVideoSource?'Selecting best video & writing caption…':'Selecting best image & writing caption…';
   p.style.display='block';
   loading.style.display='block';
   content.style.display='none';
   errEl.style.display='none';
   document.getElementById('preview-img').style.display='none';
+  document.getElementById('preview-video').style.display='none';
   try{
     const res=await fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_source:source})});
     const data=await res.json();
@@ -81,8 +92,19 @@ async function previewPost(){
     if(data.success){
       document.getElementById('preview-caption').textContent=data.caption;
       document.getElementById('preview-hashtags').textContent=data.hashtags;
-      const img=document.getElementById('preview-img');
-      img.src=data.url;img.style.display='block';
+      const isVideo=data.media_type==='video';
+      document.getElementById('preview_media_type').value=isVideo?'video':'image';
+      if(isVideo){
+        const vid=document.getElementById('preview-video');
+        vid.src=data.url;
+        vid.style.display='block';
+        document.getElementById('preview-img').style.display='none';
+      } else {
+        const img=document.getElementById('preview-img');
+        img.src=data.url;
+        img.style.display='block';
+        document.getElementById('preview-video').style.display='none';
+      }
       document.getElementById('preview_image_url').value=data.raw_url||'';
       document.getElementById('preview_image_source').value=data.image_source||'';
       document.getElementById('preview_caption_hidden').value=data.caption||'';
@@ -93,6 +115,7 @@ async function previewPost(){
       errEl.style.display='block';
     }
   }catch(e){
+    console.error('Preview fetch error:', e);
     loading.style.display='none';
     errEl.textContent='Request failed — check your connection.';
     errEl.style.display='block';
