@@ -35,7 +35,15 @@
       <span style="display:block;width:3px;height:11px;background:var(--accent);border-radius:2px"></span>Profile
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center">
-      <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_info.followers_count if ig_info else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Followers</div></div>
+      <div>
+        <div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_info.followers_count if ig_info else '—' }}</div>
+        {% if follower_delta is not none %}
+        <div style="font-size:13px;font-weight:600;color:{% if follower_delta >= 0 %}var(--green){% else %}var(--red){% endif %};margin-bottom:4px">
+          {% if follower_delta >= 0 %}▲{% else %}▼{% endif %} {{ follower_delta|abs }} this week
+        </div>
+        {% endif %}
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Followers</div>
+      </div>
       <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_info.follows_count if ig_info else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Following</div></div>
       <div><div style="font-size:22px;font-weight:700;color:var(--blue);line-height:1;margin-bottom:4px">{{ ig_info.media_count if ig_info else '—' }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Posts</div></div>
     </div>
@@ -51,6 +59,16 @@
       <div><div style="font-size:22px;font-weight:700;color:var(--red);line-height:1;margin-bottom:4px">{{ failed_posts }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Posts Failed</div></div>
       <div><div style="font-size:22px;font-weight:700;color:{% if failed_24h > 0 %}var(--red){% else %}var(--green){% endif %};line-height:1;margin-bottom:4px">{{ failed_24h }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Failed (24h)</div></div>
     </div>
+    {% if token_expiry_str %}
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
+      <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;font-size:10px">IG Token Expires</span>
+      <span style="font-weight:600;color:{% if token_days_left <= 0 %}var(--red){% elif token_days_left <= 7 %}var(--red){% elif token_days_left <= 14 %}var(--amber){% else %}var(--green){% endif %}">
+        {{ token_expiry_str }}{% if token_days_left <= 0 %} — expired{% elif token_days_left == 1 %} (1 day left){% else %} ({{ token_days_left }}d left){% endif %}
+      </span>
+    </div>
+    {% elif token_expiry_str is defined %}
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-soft);font-size:11px;color:var(--text-muted)">IG token expiry not on record — refresh token to capture date</div>
+    {% endif %}
   </div>
 
   <!-- Content Performance -->

@@ -3,10 +3,20 @@
 from flask import render_template, request, redirect, url_for, flash, jsonify, send_file, abort
 from pathlib import Path
 from web.auth import verify_password, login_required, login_user, logout_user
-from agent.models import Session, Post, ActivityLog, CommentReply, EngagementAction, log_activity, get_setting, set_setting
+from agent.models import Session, Post, ActivityLog, CommentReply, EngagementAction, GrowthSnapshot, log_activity, get_setting, set_setting
 from agent.caption_generator import CaptionGenerator
 from agent.image_sourcer import ImageSourcer
 from agent.instagram_client import InstagramClient
+
+
+def _get_posted_media_urls() -> set:
+    """Query all image/video URLs that have already been successfully posted."""
+    session = Session()
+    try:
+        rows = session.query(Post.image_url).filter(Post.status == "posted").all()
+        return {row[0] for row in rows if row[0]}
+    finally:
+        Session.remove()
 
 
 def register_routes(app):
@@ -59,6 +69,24 @@ def register_routes(app):
                 ig_stats = ig.get_likes_stats()
             except:
                 pass
+            token_expiry = None
+            token_days_left = None
+            token_expiry_str = None
+            stored_ts = get_setting("token_expiry_ts", "")
+            if stored_ts:
+                try:
+                    token_expiry = datetime.fromtimestamp(int(stored_ts), tz=timezone.utc)
+                    token_days_left = (token_expiry - datetime.now(timezone.utc)).days
+                    token_expiry_str = token_expiry.strftime("%b %-d, %Y")
+                except (ValueError, OSError):
+                    pass
+            latest_snapshot = session.query(GrowthSnapshot).order_by(GrowthSnapshot.recorded_at.desc()).first()
+            week_ago_snapshot = session.query(GrowthSnapshot).filter(
+                GrowthSnapshot.recorded_at <= datetime.now(timezone.utc) - timedelta(days=7)
+            ).order_by(GrowthSnapshot.recorded_at.desc()).first()
+            follower_delta = None
+            if latest_snapshot and week_ago_snapshot:
+                follower_delta = latest_snapshot.followers - week_ago_snapshot.followers
             return render_template("dashboard.html",
                 total_posts=total_posts, total_replies=total_replies,
                 failed_posts=failed_posts, failed_24h=failed_24h,
@@ -66,7 +94,9 @@ def register_routes(app):
                 scheduler_status=scheduler_status, next_post=next_post,
                 ig_info=ig_info, ig_stats=ig_stats,
                 total_likes_given=total_likes_given, likes_given_today=likes_given_today,
-                page=page, per_page=per_page, total_all=total_all)
+                page=page, per_page=per_page, total_all=total_all,
+                follower_delta=follower_delta,
+                token_expiry_str=token_expiry_str, token_days_left=token_days_left)
         finally:
             Session.remove()
 
@@ -226,7 +256,7 @@ def register_routes(app):
         try:
             sourcer = ImageSourcer()
             captioner = CaptionGenerator()
-            candidates = sourcer.get_image_candidates(source=source)
+            candidates = sourcer.get_image_candidates(source=source, used_urls=_get_posted_media_urls())
             image_data = captioner.select_best_image(candidates)
             raw_url = image_data["url"]
             media_type = image_data.get("media_type", "image")
@@ -261,7 +291,7 @@ def register_routes(app):
         try:
             sourcer = ImageSourcer()
             captioner = CaptionGenerator()
-            candidates = sourcer.get_image_candidates(source=source)
+            candidates = sourcer.get_image_candidates(source=source, used_urls=_get_posted_media_urls())
             image_data = captioner.select_best_image(candidates)
             url = image_data["url"]
             if url.startswith("LOCAL:"):

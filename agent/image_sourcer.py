@@ -6,9 +6,11 @@ IMPORTANT: Instagram API requires a publicly accessible image URL.
 For local images, upload to an image host (Imgur, Cloudinary, S3) or use ngrok.
 """
 
+import json
 import os
 import random
 import shutil
+import subprocess
 import requests
 from datetime import datetime
 from pathlib import Path
@@ -153,6 +155,41 @@ class ImageSourcer:
             return portrait_files[0]["link"]
         return video_files[0]["link"] if video_files else ""
 
+    def _is_valid_for_reels(self, url: str) -> bool:
+        """Use ffprobe to verify a remote video has audio and uses H.264. Fail-open on errors."""
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", url],
+                capture_output=True, text=True, timeout=10,
+            )
+        except FileNotFoundError:
+            log_activity("ffprobe_not_installed", "ffprobe not found — skipping audio/codec validation", level="warning")
+            return True
+        except subprocess.TimeoutExpired:
+            log_activity("ffprobe_timeout", f"ffprobe timed out probing {url}", level="warning")
+            return True
+        except Exception as e:
+            log_activity("ffprobe_error", f"ffprobe error for {url}: {e}", level="warning")
+            return True
+
+        try:
+            streams = json.loads(result.stdout).get("streams", [])
+        except (json.JSONDecodeError, ValueError) as e:
+            log_activity("ffprobe_parse_error", f"Could not parse ffprobe output: {e}", level="warning")
+            return True
+
+        has_audio = any(s.get("codec_type") == "audio" for s in streams)
+        video_streams = [s for s in streams if s.get("codec_type") == "video"]
+        has_h264 = any(s.get("codec_name") == "h264" for s in video_streams)
+
+        if not has_audio:
+            log_activity("pexels_video_rejected", f"No audio stream: {url}", level="info")
+            return False
+        if video_streams and not has_h264:
+            log_activity("pexels_video_rejected", f"Non-h264 codec: {url}", level="info")
+            return False
+        return True
+
     def _from_pexels(self, used_urls: set = None) -> dict:
         if not Config.PEXELS_API_KEY:
             raise ValueError("Pexels API key not configured. Set PEXELS_API_KEY in .env")
@@ -170,17 +207,23 @@ class ImageSourcer:
                 video_files = video.get("video_files", [])
                 if not video_files:
                     continue
+                if not (3 <= video.get("duration", 0) <= 90):
+                    continue
                 url = self._pick_hd_portrait_file(video_files)
                 if not url or url in used_urls:
+                    continue
+                if not self._is_valid_for_reels(url):
                     continue
                 context = f"cat video from Pexels by {video.get('user', {}).get('name', 'unknown')}"
                 thumbnail_url = video.get("image", "")
                 log_activity("video_fetched", f"Pexels: {url}", level="info")
                 return {"url": url, "source": "pexels", "context": context, "media_type": "video", "thumbnail_url": thumbnail_url}
-            # All used — reuse the first available result without a second HTTP call
+            # All used or filtered — reuse the first duration-valid result without a second HTTP call
             for video in videos:
                 video_files = video.get("video_files", [])
                 if not video_files:
+                    continue
+                if not (3 <= video.get("duration", 0) <= 90):
                     continue
                 url = self._pick_hd_portrait_file(video_files)
                 if not url:
@@ -213,8 +256,12 @@ class ImageSourcer:
                 video_files = video.get("video_files", [])
                 if not video_files:
                     continue
+                if not (3 <= video.get("duration", 0) <= 90):
+                    continue
                 url = self._pick_hd_portrait_file(video_files)
                 if not url or url in used_urls:
+                    continue
+                if not self._is_valid_for_reels(url):
                     continue
                 context = f"cat video from Pexels by {video.get('user', {}).get('name', 'unknown')}"
                 thumbnail_url = video.get("image", "")
@@ -222,11 +269,13 @@ class ImageSourcer:
                 if len(candidates) >= 5:
                     break
             if not candidates:
-                # All results already used — reuse first valid one without a second HTTP call
-                log_activity("pexels_candidates_all_used", "All Pexels results were duplicates; reusing first", level="warning")
+                # All results already used or filtered — reuse first duration-valid one without a second HTTP call
+                log_activity("pexels_candidates_all_used", "All Pexels results were duplicates or filtered; reusing first", level="warning")
                 for video in videos:
                     video_files = video.get("video_files", [])
                     if not video_files:
+                        continue
+                    if not (3 <= video.get("duration", 0) <= 90):
                         continue
                     url = self._pick_hd_portrait_file(video_files)
                     if not url:

@@ -93,6 +93,16 @@ class AgentSettings(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class GrowthSnapshot(Base):
+    __tablename__ = "growth_snapshots"
+
+    id = Column(Integer, primary_key=True)
+    followers = Column(Integer)
+    following = Column(Integer)
+    posts = Column(Integer)
+    recorded_at = Column(DateTime, default=utcnow)
+
+
 def init_db():
     """Create all tables and seed default settings."""
     Base.metadata.create_all(engine)

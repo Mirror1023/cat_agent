@@ -24,14 +24,19 @@ from config import Config
 from agent.models import Session, EngagementAction, log_activity, get_setting
 from agent.instagram_client import InstagramClient
 
-_LIKE_PAUSE = (3, 9)    # Seconds between comment likes
-_VIP_PAUSE  = (8, 20)   # Seconds between VIP post actions
+_LIKE_PAUSE       = (3, 9)    # Seconds between comment likes
+_VIP_PAUSE        = (8, 20)   # Seconds between VIP post actions
+_COMMENTER_PAUSE  = (5, 15)   # Seconds between commenter post likes
 
 
 class EngagementAgent:
     def __init__(self):
         self.ig = InstagramClient()
         self.claude = anthropic.Anthropic(api_key=Config.ANTHROPIC_API_KEY)
+        try:
+            self._own_username = self.ig.get_account_insights().get("username", "")
+        except Exception:
+            self._own_username = ""
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -206,32 +211,102 @@ class EngagementAgent:
 
         return liked
 
+    def _like_commenter_accounts(self, session) -> int:
+        """Discover commenters on our recent posts and like their content via Business Discovery."""
+        liked = 0
+        try:
+            commenters: dict[str, int] = {}
+            recent_posts = self.ig.get_recent_media(limit=20)
+            for post in recent_posts:
+                post_id = post["id"]
+                try:
+                    comments = self.ig.get_media_comments(post_id)
+                    for comment in comments:
+                        username = comment.get("username", "")
+                        if username and username != self._own_username:
+                            commenters[username] = commenters.get(username, 0) + 1
+                except Exception as e:
+                    log_activity("engagement_commenter_fetch_error",
+                                 f"Post {post_id}: {e}", level="warning")
+
+            if not commenters:
+                return 0
+
+            top_commenters = sorted(commenters.items(), key=lambda x: -x[1])[:10]
+
+            for username, _ in top_commenters:
+                try:
+                    media_list = self.ig.get_user_media_by_username(username, limit=50)
+                    posts_liked = 0
+                    for media in media_list:
+                        if posts_liked >= 3:
+                            break
+                        if media.get("media_type") != "IMAGE":
+                            continue
+                        media_id = media["id"]
+                        if self._already_seen(media_id, session):
+                            continue
+                        try:
+                            self.ig.like_media(media_id)
+                            session.add(EngagementAction(
+                                instagram_media_id=media_id,
+                                action="commenter_like",
+                                hashtag=f"@{username}",
+                                score=8,
+                            ))
+                            session.commit()
+                            liked += 1
+                            posts_liked += 1
+                            log_activity("engagement_commenter_liked",
+                                         f"@{username} — {media_id}", level="success")
+                            time.sleep(random.uniform(*_COMMENTER_PAUSE))
+                        except Exception as e:
+                            session.add(EngagementAction(
+                                instagram_media_id=media_id,
+                                action="skipped",
+                                hashtag=f"@{username}",
+                                skip_reason=f"commenter_like_failed: {e}",
+                            ))
+                            session.commit()
+                            log_activity("engagement_commenter_like_error",
+                                         f"@{username}: {e}", level="warning")
+                except Exception as e:
+                    log_activity("engagement_commenter_fetch_error",
+                                 f"@{username}: {e}", level="warning")
+        except Exception as e:
+            log_activity("engagement_commenter_cycle_error", str(e), level="error")
+        return liked
+
     # ── Main cycle ────────────────────────────────────────────────────────────
 
     def run_engagement_cycle(self) -> dict:
         if get_setting("enable_engagement", "true") != "true":
-            return {"comment_likes": 0, "vip_likes": 0}
+            return {"comment_likes": 0, "vip_likes": 0, "commenter_likes": 0}
 
         session = Session()
         comment_likes = 0
         vip_likes = 0
+        commenter_likes = 0
 
         try:
             # Like comments on our own posts
             comment_likes = self._like_recent_comments(session)
 
-            # Like VIP account posts (no-op until business discovery is approved)
+            # Like VIP account posts
             vip_likes = self._like_vip_accounts(session)
+
+            # Like posts from accounts that commented on our content
+            commenter_likes = self._like_commenter_accounts(session)
 
         except Exception as e:
             log_activity("engagement_cycle_error", str(e), level="error")
         finally:
             Session.remove()
 
-        if comment_likes or vip_likes:
+        if comment_likes or vip_likes or commenter_likes:
             log_activity(
                 "engagement_cycle_done",
-                f"Cycle complete — liked {comment_likes} comments, {vip_likes} VIP posts",
+                f"Cycle — {comment_likes} comment likes, {vip_likes} VIP, {commenter_likes} commenter",
                 level="success",
             )
         else:
@@ -241,6 +316,6 @@ class EngagementAgent:
                 level="info",
             )
 
-        return {"comment_likes": comment_likes, "vip_likes": vip_likes}
+        return {"comment_likes": comment_likes, "vip_likes": vip_likes, "commenter_likes": commenter_likes}
 
 

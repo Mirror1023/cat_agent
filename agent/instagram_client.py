@@ -128,14 +128,20 @@ class InstagramClient:
         start = time.time()
 
         while time.time() - start < max_wait:
-            resp = requests.get(url, params=self._params({"fields": "status_code"}), timeout=15)
+            resp = requests.get(url, params=self._params({"fields": "status_code,error_code"}), timeout=15)
             resp.raise_for_status()
-            status = resp.json().get("status_code", "UNKNOWN")
+            data = resp.json()
+            status = data.get("status_code", "UNKNOWN")
+            error_code = data.get("error_code", "")
 
             if status in ("FINISHED", "PUBLISHED"):
                 return status
             elif status == "ERROR":
-                raise ValueError(f"Container {container_id} failed with ERROR status")
+                detail = f"Container {container_id} failed with ERROR status"
+                if error_code:
+                    detail += f" (error_code: {error_code})"
+                log_activity("ig_container_error", f"{detail} | full response: {data}", level="error")
+                raise ValueError(detail)
 
             log_activity("ig_container_polling", f"Container {container_id} status: {status}", level="info")
             time.sleep(3)
@@ -478,12 +484,39 @@ class InstagramClient:
         )
         resp.raise_for_status()
         data = resp.json()
+        expires_in = data.get("expires_in", 0)
+        if expires_in:
+            from datetime import datetime, timezone, timedelta
+            from agent.models import set_setting
+            expiry_ts = int((datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))).timestamp())
+            set_setting("token_expiry_ts", str(expiry_ts))
         log_activity(
             "token_exchanged",
-            f"Long-lived token obtained, expires in {data.get('expires_in', '?')}s",
+            f"Long-lived token obtained, expires in {expires_in}s",
             level="success",
         )
         return data
+
+    def get_token_debug_info(self) -> dict:
+        """
+        Call Facebook's debug_token endpoint to get the current token's validity,
+        expiry timestamp, and scopes. Works even if the token is already expired.
+        Requires INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET.
+        Returns the inner 'data' dict which includes 'expires_at' (Unix timestamp)
+        and 'is_valid' (bool).
+        """
+        if not Config.INSTAGRAM_APP_ID or not Config.INSTAGRAM_APP_SECRET:
+            raise ValueError("INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET required for token inspection")
+        resp = requests.get(
+            "https://graph.facebook.com/debug_token",
+            params={
+                "input_token": self.access_token,
+                "access_token": f"{Config.INSTAGRAM_APP_ID}|{Config.INSTAGRAM_APP_SECRET}",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return resp.json().get("data", {})
 
     def refresh_long_lived_token(self) -> dict:
         """
@@ -498,7 +531,13 @@ class InstagramClient:
         }, timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        log_activity("token_refreshed", f"New token expires in {data.get('expires_in', '?')}s", level="success")
+        expires_in = data.get("expires_in", 0)
+        if expires_in:
+            from datetime import datetime, timezone, timedelta
+            from agent.models import set_setting
+            expiry_ts = int((datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))).timestamp())
+            set_setting("token_expiry_ts", str(expiry_ts))
+        log_activity("token_refreshed", f"New token expires in {expires_in}s", level="success")
         return data
 
     def delete_post(self, media_id: str) -> bool:

@@ -33,6 +33,14 @@ class PostScheduler:
             self.scheduler.add_job(self.check_comments, trigger=IntervalTrigger(minutes=15), id="check_comments", name="Check & Reply to Comments", replace_existing=True, max_instances=1)
         if get_setting("enable_engagement", "true") == "true":
             self.scheduler.add_job(self.run_engagement, trigger=IntervalTrigger(minutes=30), id="engagement", name="Like Cat Posts", replace_existing=True, max_instances=1)
+        self.scheduler.add_job(
+            self.record_growth_snapshot,
+            trigger=IntervalTrigger(hours=24),
+            id="growth_snapshot",
+            name="Record Follower Growth",
+            replace_existing=True,
+            max_instances=1,
+        )
         self.scheduler.start()
         self._running = True
         set_setting("scheduler_enabled", "true")
@@ -64,7 +72,8 @@ class PostScheduler:
             self.stop()
             self.start()
 
-    def _get_used_image_urls(self) -> set:
+    def _get_used_media_urls(self) -> set:
+        """Return all image/video URLs that have already been successfully posted."""
         session = Session()
         try:
             rows = session.query(Post.image_url).filter(Post.status == "posted").all()
@@ -101,7 +110,7 @@ class PostScheduler:
         session = Session()
         post = Post(status="draft", created_at=utcnow())
         try:
-            used_urls = self._get_used_image_urls()
+            used_urls = self._get_used_media_urls()
             candidates = self.image_sourcer.get_image_candidates(used_urls=used_urls)
             image_data = self.captioner.select_best_image(candidates)
             image_url = image_data["url"]
@@ -158,7 +167,7 @@ class PostScheduler:
                     post.image_url = image_url
                 image_context = None
             else:
-                used_urls = self._get_used_image_urls()
+                used_urls = self._get_used_media_urls()
                 candidates = self.image_sourcer.get_image_candidates(source=image_source, used_urls=used_urls)
                 image_data = self.captioner.select_best_image(candidates)
                 image_url = image_data["url"]
@@ -218,6 +227,26 @@ class PostScheduler:
     def run_engagement(self):
         try:
             result = self.engagement_agent.run_engagement_cycle()
-            log_activity("engagement_run", f"Liked {result['liked']}, commented {result['commented']}, skipped {result['skipped']}", level="info")
+            log_activity("engagement_run",
+                f"Liked {result['comment_likes']} comments, "
+                f"{result['vip_likes']} VIP posts, "
+                f"{result['commenter_likes']} commenter posts",
+                level="info")
         except Exception as e:
             log_activity("engagement_run_error", str(e), level="error")
+
+    def record_growth_snapshot(self):
+        try:
+            from agent.models import Session, GrowthSnapshot
+            info = self.ig.get_account_insights()
+            session = Session()
+            session.add(GrowthSnapshot(
+                followers=info.get("followers_count", 0),
+                following=info.get("follows_count", 0),
+                posts=info.get("media_count", 0),
+            ))
+            session.commit()
+            Session.remove()
+            log_activity("growth_snapshot", f"Recorded: {info.get('followers_count', 0)} followers", level="info")
+        except Exception as e:
+            log_activity("growth_snapshot_error", str(e), level="warning")

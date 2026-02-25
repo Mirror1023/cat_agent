@@ -44,6 +44,14 @@ Running log of mistakes and the rules that prevent them. Updated after every cor
 
 ---
 
+## 2026-02-24 — APP_VERSION_DATE used placeholder time instead of actual time
+
+**Mistake:** When bumping the app version, hardcoded `12:00 PM EST` as the time instead of checking the actual current time.
+
+**Rule:** Always run `date` before writing `APP_VERSION_DATE`. Use the real local time, not a placeholder.
+
+---
+
 ## 2026-02-22 — Loading text said "image" for video sources
 
 **Mistake:** The compose page loading spinner said "Selecting best image & writing caption…" even when Pexels or Local Videos was selected as the source.
