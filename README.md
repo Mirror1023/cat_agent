@@ -2,6 +2,8 @@
 
 An AI-powered Instagram automation agent that runs a cat-themed account. Uses Claude (Anthropic) for generating captions, hashtags, and comment replies, with multiple configurable image sources.
 
+**Live account:** [instagram.com/catmanduig](https://www.instagram.com/catmanduig/) — 269+ posts, fully automated, running unattended for weeks.
+
 **This version uses the Instagram Platform API with Instagram Login — no Facebook Page required.**
 
 ## Features
