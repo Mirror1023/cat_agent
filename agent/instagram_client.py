@@ -128,10 +128,11 @@ class InstagramClient:
         start = time.time()
 
         while time.time() - start < max_wait:
-            resp = requests.get(url, params=self._params({"fields": "status_code,error_code"}), timeout=15)
+            resp = requests.get(url, params=self._params({"fields": "status_code"}), timeout=15)
             resp.raise_for_status()
             data = resp.json()
             status = data.get("status_code", "UNKNOWN")
+            # error_code is returned by Instagram automatically in ERROR state (not a requestable field)
             error_code = data.get("error_code", "")
 
             if status in ("FINISHED", "PUBLISHED"):
@@ -539,6 +540,44 @@ class InstagramClient:
             set_setting("token_expiry_ts", str(expiry_ts))
         log_activity("token_refreshed", f"New token expires in {expires_in}s", level="success")
         return data
+
+    def exchange_facebook_user_token(self, short_lived_user_token: str) -> dict:
+        """
+        Exchange a short-lived Facebook User token (~1 hour) for a long-lived one (~60 days).
+        This is step 1 toward getting a permanent Page Access Token.
+        Returns dict with 'access_token' and 'expires_in'.
+        """
+        resp = requests.get(
+            "https://graph.facebook.com/oauth/access_token",
+            params={
+                "grant_type": "fb_exchange_token",
+                "client_id": Config.INSTAGRAM_APP_ID,
+                "client_secret": Config.INSTAGRAM_APP_SECRET,
+                "fb_exchange_token": short_lived_user_token,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        log_activity("fb_user_token_exchanged", f"Long-lived FB user token obtained, expires in {data.get('expires_in', '?')}s", level="success")
+        return data
+
+    def get_facebook_page_tokens(self, long_lived_user_token: str) -> list:
+        """
+        Step 2: Exchange a long-lived Facebook User token for permanent Page Access Tokens.
+        Page tokens derived from a long-lived user token never expire (expires_at = 0).
+        Returns list of dicts with 'name', 'id', 'access_token' for each managed Page.
+        Store the relevant token as FACEBOOK_PAGE_ACCESS_TOKEN in .env.
+        """
+        resp = requests.get(
+            "https://graph.facebook.com/me/accounts",
+            params={"access_token": long_lived_user_token},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        pages = resp.json().get("data", [])
+        log_activity("fb_page_tokens_fetched", f"Fetched {len(pages)} Facebook Page token(s)", level="success")
+        return pages
 
     def delete_post(self, media_id: str) -> bool:
         """Delete a published post from Instagram."""

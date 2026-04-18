@@ -136,6 +136,8 @@ class EngagementAgent:
 
     def _like_vip_accounts(self, session) -> int:
         """Like and comment on posts from VIP accounts via Business Discovery API."""
+        # Disabled — requires a valid FACEBOOK_PAGE_ACCESS_TOKEN; re-enable when token is sorted
+        return 0
         raw = get_setting("vip_accounts", "")
         usernames = [u.strip().lstrip("@") for u in raw.split(",") if u.strip()]
         if not usernames:

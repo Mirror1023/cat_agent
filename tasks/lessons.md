@@ -44,6 +44,14 @@ Running log of mistakes and the rules that prevent them. Updated after every cor
 
 ---
 
+## 2026-02-25 — fix_session.close() detaches objects from scoped session
+
+**Mistake:** `comment_responder.py` created a `fix_session = Session()` inside a scoped session context then called `fix_session.close()`. Because `Session()` is a scoped session (same session per thread), this closed the outer session too — detaching all `recent_posts` objects and causing "not bound to a Session" on the next loop iteration.
+
+**Rule:** Never call `Session()` inside a function that already has an open scoped session. Never call `.close()` on a scoped session mid-loop. If you need to update an object inline, use the existing `session` directly.
+
+---
+
 ## 2026-02-24 — APP_VERSION_DATE used placeholder time instead of actual time
 
 **Mistake:** When bumping the app version, hardcoded `12:00 PM EST` as the time instead of checking the actual current time.

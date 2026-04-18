@@ -80,6 +80,18 @@ def register_routes(app):
                     token_expiry_str = token_expiry.strftime("%b %-d, %Y")
                 except (ValueError, OSError):
                     pass
+            fb_token_expiry_str = None
+            fb_token_days_left = None
+            fb_stored_ts = get_setting("fb_token_expiry_ts", "")
+            if fb_stored_ts == "0":
+                fb_token_expiry_str = "Permanent"
+            elif fb_stored_ts:
+                try:
+                    fb_token_expiry = datetime.fromtimestamp(int(fb_stored_ts), tz=timezone.utc)
+                    fb_token_days_left = (fb_token_expiry - datetime.now(timezone.utc)).days
+                    fb_token_expiry_str = fb_token_expiry.strftime("%b %-d, %Y")
+                except (ValueError, OSError):
+                    pass
             latest_snapshot = session.query(GrowthSnapshot).order_by(GrowthSnapshot.recorded_at.desc()).first()
             week_ago_snapshot = session.query(GrowthSnapshot).filter(
                 GrowthSnapshot.recorded_at <= datetime.now(timezone.utc) - timedelta(days=7)
@@ -96,7 +108,8 @@ def register_routes(app):
                 total_likes_given=total_likes_given, likes_given_today=likes_given_today,
                 page=page, per_page=per_page, total_all=total_all,
                 follower_delta=follower_delta,
-                token_expiry_str=token_expiry_str, token_days_left=token_days_left)
+                token_expiry_str=token_expiry_str, token_days_left=token_days_left,
+                fb_token_expiry_str=fb_token_expiry_str, fb_token_days_left=fb_token_days_left)
         finally:
             Session.remove()
 

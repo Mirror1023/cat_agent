@@ -45,18 +45,13 @@ class CommentResponder:
                     post_id = post.id
                     err_str = str(e)
                     if "400" in err_str or "404" in err_str:
-                        # Use a fresh session so stale state can't cause a commit failure
-                        fix_session = Session()
                         try:
-                            stale = fix_session.query(Post).filter_by(id=post_id).first()
-                            if stale:
-                                stale.instagram_media_id = None
-                                fix_session.commit()
+                            post.instagram_media_id = None
+                            session.commit()
+                            log_activity("comment_fetch_error", f"Post {post_id}: media not found on Instagram, cleared media ID", level="warning")
                         except Exception as fix_err:
+                            session.rollback()
                             log_activity("comment_fetch_error", f"Post {post_id}: could not clear media ID: {fix_err}", level="error")
-                        finally:
-                            fix_session.close()
-                        log_activity("comment_fetch_error", f"Post {post_id}: media not found on Instagram, cleared media ID", level="warning")
                     else:
                         log_activity("comment_fetch_error", f"Post {post_id}: {e}", level="error")
                     continue
