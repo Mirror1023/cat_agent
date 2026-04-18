@@ -59,16 +59,30 @@
       <div><div style="font-size:22px;font-weight:700;color:var(--red);line-height:1;margin-bottom:4px">{{ failed_posts }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Posts Failed</div></div>
       <div><div style="font-size:22px;font-weight:700;color:{% if failed_24h > 0 %}var(--red){% else %}var(--green){% endif %};line-height:1;margin-bottom:4px">{{ failed_24h }}</div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Failed (24h)</div></div>
     </div>
-    {% if token_expiry_str %}
-    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
-      <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;font-size:10px">IG Token Expires</span>
-      <span style="font-weight:600;color:{% if token_days_left <= 0 %}var(--red){% elif token_days_left <= 7 %}var(--red){% elif token_days_left <= 14 %}var(--amber){% else %}var(--green){% endif %}">
-        {{ token_expiry_str }}{% if token_days_left <= 0 %} — expired{% elif token_days_left == 1 %} (1 day left){% else %} ({{ token_days_left }}d left){% endif %}
-      </span>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-soft)">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;margin-bottom:6px">
+        <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;font-size:10px">IG Token</span>
+        {% if token_expiry_str %}
+        <span style="font-weight:600;color:{% if token_days_left <= 0 %}var(--red){% elif token_days_left <= 7 %}var(--red){% elif token_days_left <= 14 %}var(--amber){% else %}var(--green){% endif %}">
+          {{ token_expiry_str }}{% if token_days_left <= 0 %} — expired{% elif token_days_left == 1 %} (1 day left){% else %} ({{ token_days_left }}d left){% endif %}
+        </span>
+        {% else %}
+        <span style="font-size:11px;color:var(--text-muted)">not on record</span>
+        {% endif %}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
+        <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;font-size:10px">FB Token</span>
+        {% if fb_token_expiry_str == "Permanent" %}
+        <span style="font-weight:600;color:var(--green)">Permanent</span>
+        {% elif fb_token_expiry_str %}
+        <span style="font-weight:600;color:{% if fb_token_days_left <= 0 %}var(--red){% elif fb_token_days_left <= 7 %}var(--red){% elif fb_token_days_left <= 14 %}var(--amber){% else %}var(--green){% endif %}">
+          {{ fb_token_expiry_str }}{% if fb_token_days_left <= 0 %} — expired{% elif fb_token_days_left == 1 %} (1 day left){% else %} ({{ fb_token_days_left }}d left){% endif %}
+        </span>
+        {% else %}
+        <span style="font-size:11px;color:var(--text-muted)">not on record</span>
+        {% endif %}
+      </div>
     </div>
-    {% elif token_expiry_str is defined %}
-    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-soft);font-size:11px;color:var(--text-muted)">IG token expiry not on record — refresh token to capture date</div>
-    {% endif %}
   </div>
 
   <!-- Content Performance -->
